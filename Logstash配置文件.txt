@@ -1,0 +1,56 @@
+input {
+    beats{
+          port => 5044
+     }
+}
+
+filter { 
+     grok {
+           match => {"message" => "%{TIMESTAMP_ISO8601:timeFlag}\s*%{LOGLEVEL:logLevel}\s*%{GREEDYDATA}"}
+     }
+     if[logLevel]{
+           mutate {
+                add_field =>   {"timeFlag" => "%{timeFlag[0]}"}
+       	add_field =>   {"logLevel" => "%{logLevel[0]}"}
+          }
+    }
+    if "#" in [message]{
+            mutate {
+	   split => ["message", "#"]
+	   add_field =>   {"temp1" => "%{[message][0]}"}
+	   add_field =>   { "itemName" => "%{[message][1]}"}
+	   add_field =>   { "startTime" => "%{[message][2]}"}
+	   add_field =>   { "url" => "%{[message][3]}" }
+	   add_field =>   { "apiName" => "%{[message][4]}"}
+        	   add_field =>   {	 "method" => "%{[message][5]}"}
+        	   add_field =>   { "ip" => "%{[message][6]}" }
+   	   add_field =>   { "costTime" => "%{[message][7]}" }
+           }
+           mutate { convert => ["costTime", "float"] }
+   	   date {
+	         match => ["startTime" ,"yyyy-MM-dd'T'HH:mm:ss.Z","ISO8601"]
+	         target => "@request_startTime"
+                    }
+           }     
+}
+
+output {
+      if[fields][log_type]=="log-XXX"{
+            elasticsearch {
+                   hosts => ["http://127.0.0.1:9200"]
+                   index => "log-info-XXX%{+YYYY.MM.dd}"
+            }
+           stdout {
+                   codec => rubydebug
+           }
+       }
+       if[fields][log_type]=="log-YYY"{
+              elasticsearch {
+                     hosts => ["http://127.0.0.2:9200"]
+                     index => "log-info-YYY%{+YYYY.MM.dd}"
+               }
+              stdout {
+                     codec => rubydebug
+               }
+       }
+}
